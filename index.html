@@ -1,0 +1,1812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Invoice Editor - Party Data Management</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a56d4;
+            --secondary: #3f37c9;
+            --accent: #4895ef;
+            --danger: #f72585;
+            --success: #4cc9f0;
+            --warning: #f8961e;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --gray: #6c757d;
+            --light-gray: #e9ecef;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.1), 0 5px 10px rgba(0,0,0,0.05);
+            --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+            color: var(--dark);
+            min-height: 100vh;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            position: relative;
+            min-height: 80vh;
+            transition: var(--transition);
+        }
+
+        /* Header Styles */
+        .app-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .app-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            transform: rotate(30deg);
+            pointer-events: none;
+        }
+
+        .app-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .app-subtitle {
+            font-size: 1rem;
+            opacity: 0.9;
+            font-weight: 400;
+            margin-bottom: 1.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Upload Section */
+        .upload-section {
+            padding: 2rem;
+            text-align: center;
+            position: relative;
+            transition: var(--transition);
+        }
+
+        .upload-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            padding: 2.5rem;
+            margin: 0 auto 2rem;
+            max-width: 600px;
+            position: relative;
+            overflow: hidden;
+            transition: var(--transition);
+            border: 2px dashed var(--light-gray);
+        }
+
+        .upload-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--accent);
+        }
+
+        .upload-card.dragover {
+            background: rgba(72, 149, 239, 0.05);
+            border-color: var(--accent);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            transition: var(--transition);
+        }
+
+        .upload-card:hover .upload-icon {
+            color: var(--accent);
+            transform: scale(1.1);
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .upload-hint {
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+
+        #pdfInput {
+            display: none;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .action-btn i {
+            font-size: 1rem;
+        }
+
+        .upload-data-btn {
+            background: var(--accent);
+            color: white;
+        }
+
+        .upload-data-btn:hover {
+            background: #3a86e0;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .add-party-btn {
+            background: var(--warning);
+            color: white;
+        }
+
+        .add-party-btn:hover {
+            background: #e07e0e;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        #xlsInput {
+            display: none;
+        }
+
+        /* Progress Indicator */
+        .progress-container {
+            max-width: 600px;
+            margin: 2rem auto;
+            display: none;
+        }
+
+        .progress-label {
+            font-size: 0.9rem;
+            color: var(--gray);
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .progress-bar-container {
+            height: 8px;
+            background: var(--light-gray);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--primary) 100%);
+            width: 0%;
+            transition: width 0.4s ease;
+            border-radius: 4px;
+        }
+
+        /* Status Messages */
+        .status-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem auto;
+            max-width: 600px;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #ef5350;
+        }
+
+        .status-success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-left: 4px solid #66bb6a;
+        }
+
+        /* Action Section */
+        .action-section {
+            padding: 2rem;
+            display: none;
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: var(--dark);
+            margin-bottom: 1.5rem;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .party-selector-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--dark);
+        }
+
+        .form-select, .form-input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 1px solid var(--light-gray);
+            border-radius: 8px;
+            font-size: 1rem;
+            color: var(--dark);
+            transition: var(--transition);
+            background: white;
+        }
+
+        .form-select:focus, .form-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(72, 149, 239, 0.2);
+        }
+
+        .party-preview {
+            background: rgba(67, 97, 238, 0.05);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 1.5rem;
+            border-left: 4px solid var(--primary);
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .party-preview-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .party-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .detail-item {
+            margin-bottom: 0.5rem;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+
+        .detail-value {
+            color: var(--dark);
+            word-break: break-word;
+        }
+
+        .generate-btn {
+            background: linear-gradient(135deg, var(--success) 0%, #00b4d8 100%);
+            color: white;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: block;
+            margin: 2rem auto 0;
+            transition: var(--transition);
+            box-shadow: var(--shadow-sm);
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            background: linear-gradient(135deg, #00b4d8 0%, var(--success) 100%);
+        }
+
+        /* Preview Section */
+        .preview-section {
+            padding: 2rem;
+            display: none;
+            animation: slideUp 0.5s ease;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .preview-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .preview-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .preview-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .preview-column {
+            background: white;
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            padding: 1.5rem;
+            transition: var(--transition);
+        }
+
+        .preview-column:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .column-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .pdf-canvas {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--light-gray);
+            background: #f9f9f9;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        /* Download Section */
+        .download-section {
+            padding: 2rem;
+            background: rgba(67, 97, 238, 0.05);
+            text-align: center;
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, var(--danger) 0%, #d9048e 100%);
+            color: white;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow-sm);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            background: linear-gradient(135deg, #d9048e 0%, var(--danger) 100%);
+        }
+
+        .download-hint {
+            color: var(--gray);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            width: 90%;
+            max-width: 600px;
+            position: relative;
+            animation: slideUp 0.3s ease;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            color: var(--gray);
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .close-btn:hover {
+            color: var(--danger);
+            transform: rotate(90deg);
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-form .form-group {
+            margin-bottom: 1.2rem;
+        }
+
+        .modal-form .form-label {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        .modal-form .form-input {
+            padding: 0.7rem 1rem;
+            font-size: 0.95rem;
+        }
+
+        .submit-btn {
+            background: var(--primary);
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .submit-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* Floating Action Button */
+        .fab {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 56px;
+            height: 56px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: var(--shadow-lg);
+            transition: var(--transition);
+            z-index: 100;
+        }
+
+        .fab:hover {
+            transform: scale(1.1) translateY(-5px);
+            background: var(--primary-dark);
+        }
+
+        .fab i {
+            font-size: 1.5rem;
+        }
+
+        /* Fab Menu */
+        .fab-menu {
+            position: fixed;
+            bottom: 8rem;
+            right: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(20px);
+            transition: var(--transition);
+            z-index: 99;
+        }
+
+        .fab-menu.open {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+
+        .fab-menu-item {
+            background: white;
+            color: var(--primary);
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-md);
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .fab-menu-item:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .fab-menu-item i {
+            font-size: 1.2rem;
+        }
+
+        .fab-tooltip {
+            position: absolute;
+            right: 60px;
+            background: var(--dark);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: var(--transition);
+        }
+
+        .fab-menu-item:hover .fab-tooltip {
+            opacity: 1;
+            right: 70px;
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+            
+            .app-container {
+                border-radius: 12px;
+            }
+            
+            .upload-card {
+                padding: 1.5rem;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .action-btn {
+                width: 100%;
+                max-width: 300px;
+                justify-content: center;
+            }
+            
+            .preview-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .modal-content {
+                margin: 20% auto;
+                width: 95%;
+            }
+        }
+
+        /* Loading Animation */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- App Header -->
+        <div class="app-header">
+            <h1 class="app-title">PDF Invoice Editor</h1>
+            <p class="app-subtitle">Name change in your invoices with ease</p>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="upload-section" id="uploadSection">
+            <div class="upload-card" id="uploadArea" onclick="document.getElementById('pdfInput').click()">
+                <div class="upload-icon">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <h3 class="upload-text">Upload Invoice PDF(s)</h3>
+<p class="upload-hint">Drag & drop your PDF files here or click to browse (multiple files allowed)</p>
+                <input type="file" id="pdfInput" accept=".pdf" multiple />
+            </div>
+
+            <!-- Progress Indicator -->
+            <div class="progress-container" id="progress">
+                <div class="progress-label">
+                    <span id="progressText">Processing...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+            </div>
+
+            <!-- Status Message -->
+            <div class="status-message" id="status"></div>
+
+            <div class="action-buttons">
+                <button class="action-btn upload-data-btn" onclick="document.getElementById('xlsInput').click()">
+                    <i class="fas fa-file-excel"></i> Upload Party Data
+                </button>
+                <input type="file" id="xlsInput" accept=".xlsx,.xls" />
+                <button class="action-btn add-party-btn" onclick="openAddPartyModal()">
+                    <i class="fas fa-user-plus"></i> Add New Party
+                </button>
+            </div>
+        </div>
+
+        <!-- Action Section -->
+        <div class="action-section" id="actionSection">
+            <h2 class="section-title">Select Party Details</h2>
+            
+            <div class="party-selector-card">
+                <div class="form-group">
+                    <label for="partySelect" class="form-label">Party Name</label>
+                    <select id="partySelect" class="form-select">
+                        <option value="">-- Select a party --</option>
+                    </select>
+                </div>
+                
+                <div class="party-preview" id="partyPreview">
+                    <h4 class="party-preview-title">
+                        <i class="fas fa-building"></i> Party Details
+                    </h4>
+                    <div class="party-details" id="partyDetails"></div>
+                </div>
+                
+                <button type="button" class="generate-btn" onclick="generateModifiedPDF()">
+                    <i class="fas fa-magic"></i> Generate Modified PDF
+                </button>
+            </div>
+        </div>
+
+        <!-- Preview Section -->
+        <div class="preview-section" id="previewSection">
+            <div class="preview-header">
+                <h2 class="preview-title">PDF Preview</h2>
+            </div>
+            
+            <div class="preview-container">
+                <div class="preview-column">
+                    <h3 class="column-title">Original PDF</h3>
+                    <canvas id="originalPdfCanvas" class="pdf-canvas"></canvas>
+                </div>
+                <div class="preview-column">
+                    <h3 class="column-title">Modified PDF</h3>
+                    <canvas id="modifiedPdfCanvas" class="pdf-canvas"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Download Section -->
+        <div class="download-section" id="downloadSection">
+            <button class="download-btn" onclick="downloadModifiedPDF()" id="downloadBtn">
+                <i class="fas fa-download"></i> Download Modified Invoice
+            </button>
+            <p class="download-hint">Your modified invoice with updated party details</p>
+        </div>
+    </div>
+
+    <!-- Add Party Modal -->
+    <div id="addPartyModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeAddPartyModal()">&times;</span>
+            <h2 class="modal-title">Add New Party</h2>
+            <form id="partyForm" class="modal-form">
+                <div class="form-group">
+                    <label for="modalPartyName" class="form-label">Party Name</label>
+                    <input type="text" id="modalPartyName" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="modalAddress1" class="form-label">Address Line 1</label>
+                    <input type="text" id="modalAddress1" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="modalAddress2" class="form-label">Address Line 2</label>
+                    <input type="text" id="modalAddress2" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label for="modalCity" class="form-label">City</label>
+                    <input type="text" id="modalCity" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="modalState" class="form-label">State</label>
+                    <select id="modalState" class="form-select" required>
+                        <option value="GOA(30)">GOA(30)</option>
+                        <option value="MAHARASHTRA(27)">MAHARASHTRA(27)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="modalPhone1" class="form-label">Phone 1</label>
+                    <input type="tel" id="modalPhone1" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label for="modalPhone2" class="form-label">Phone 2</label>
+                    <input type="tel" id="modalPhone2" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label for="modalGst" class="form-label">GST Number</label>
+                    <input type="text" id="modalGst" class="form-input" required>
+                </div>
+                
+                <button type="button" class="submit-btn" onclick="saveNewParty()">
+                    <i class="fas fa-save"></i> Save Party
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Floating Action Button -->
+    <div class="fab" id="fab" onclick="toggleFabMenu()">
+        <i class="fas fa-cog"></i>
+    </div>
+
+    <!-- Fab Menu -->
+    <div class="fab-menu" id="fabMenu">
+        <div class="fab-menu-item" onclick="document.getElementById('xlsInput').click()">
+            <i class="fas fa-file-excel"></i>
+            <span class="fab-tooltip">Upload Party Data</span>
+        </div>
+        <div class="fab-menu-item" onclick="openAddPartyModal()">
+            <i class="fas fa-user-plus"></i>
+            <span class="fab-tooltip">Add New Party</span>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyD75VN0x6DLmKljSMKOqXgVYFIuU_X7g7c",
+            authDomain: "ka-oms-new.firebaseapp.com",
+            databaseURL: "https://ka-oms-new-default-rtdb.firebaseio.com",
+            projectId: "ka-oms-new",
+            storageBucket: "ka-oms-new.appspot.com",
+            messagingSenderId: "528745660731",
+            appId: "1:528745660731:web:277e4e0ae6382d2378771e",
+            measurementId: "G-B7EEVXQ2TG"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        let originalPdfBytes = null;
+        let modifiedPdfBytes = null;
+        let detectedAreas = null;
+        let parties = [];
+
+
+        // Initialize the app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            loadParties();
+            
+            // Set up file input handlers
+            document.getElementById('pdfInput').addEventListener('change', handlePdfUpload);
+            document.getElementById('xlsInput').addEventListener('change', handleXlsUpload);
+            
+            // Set up drag and drop for PDF
+            const uploadArea = document.getElementById('uploadArea');
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0 && files[0].type === 'application/pdf') {
+                    handlePdfUpload({ target: { files: files } });
+                }
+            });
+        });
+
+        // Toggle FAB menu
+        function toggleFabMenu() {
+            const fabMenu = document.getElementById('fabMenu');
+            fabMenu.classList.toggle('open');
+        }
+
+        // Function to load parties from Firestore
+        async function loadParties(brand) {
+            showProgress('Loading party data...');
+            try {
+                const snapshot = await database.ref(`brands/${brand}/parties`).once('value');
+                const partiesData = snapshot.val() || {};
+                parties = Object.keys(partiesData).map(key => ({
+                    id: key,
+                    ...partiesData[key]
+                }));
+                updatePartyDropdown();
+                hideProgress();
+            } catch (error) {
+                hideProgress();
+                showError('Error loading party data: ' + error.message);
+                console.error('Error loading parties:', error);
+            }
+        }
+
+        // Update the party dropdown with loaded data
+        function updatePartyDropdown() {
+            const select = document.getElementById('partySelect');
+            select.innerHTML = '<option value="">-- Select a party --</option>';
+            
+            parties.forEach(party => {
+                const option = document.createElement('option');
+                option.value = party.id;
+                option.textContent = party.partyName;
+                option.dataset.party = JSON.stringify(party);
+                select.appendChild(option);
+            });
+            
+            // Add event listener to show party details when selected
+            select.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                if (selectedOption.value) {
+                    const party = JSON.parse(selectedOption.dataset.party);
+                    showPartyDetails(party);
+                } else {
+                    document.getElementById('partyPreview').style.display = 'none';
+                }
+            });
+        }
+
+        // Display party details in the preview section
+        function showPartyDetails(party) {
+            const preview = document.getElementById('partyPreview');
+            const details = document.getElementById('partyDetails');
+            
+            // Format phone numbers
+            let phoneNumbers = [];
+            if (party.phone1) phoneNumbers.push(party.phone1);
+            if (party.phone2) phoneNumbers.push(party.phone2);
+            const phoneText = phoneNumbers.length > 0 ? phoneNumbers.join(', ') : 'Not provided';
+            
+            // Format address
+            const addressText = [party.address1, party.address2].filter(Boolean).join(' ');
+            
+            details.innerHTML = `
+                <div class="detail-item">
+                    <div class="detail-label">Name</div>
+                    <div class="detail-value">${party.partyName}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Address</div>
+                    <div class="detail-value">${addressText}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">City</div>
+                    <div class="detail-value">${party.city}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">State</div>
+                    <div class="detail-value">${party.state}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Phone</div>
+                    <div class="detail-value">${phoneText}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">GST</div>
+                    <div class="detail-value">${party.gst || 'NA'}</div>
+                </div>
+            `;
+            
+            preview.style.display = 'block';
+        }
+
+        // Handle PDF file upload
+      async function handlePdfUpload(event) {
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
+
+    // Check if all files are PDFs
+    const invalidFiles = files.filter(file => file.type !== 'application/pdf');
+    if (invalidFiles.length > 0) {
+        showError('Please upload PDF files only.');
+        return;
+    }
+
+    showProgress(`Processing ${files.length} PDF files...`);
+    uploadedPdfFiles = files; // Store the files
+    
+    try {
+        // Process the first PDF to detect areas (assuming all PDFs have same layout)
+        const firstFile = files[0];
+        const arrayBuffer = await firstFile.arrayBuffer();
+        originalPdfBytes = new Uint8Array(arrayBuffer);
+        
+        // Perform field detection on first PDF
+        detectedAreas = await performLineTracing(originalPdfBytes);
+        
+        // Show action section
+        document.getElementById('uploadSection').style.display = 'none';
+        document.getElementById('actionSection').style.display = 'block';
+        
+        // Render original PDF preview of first file
+        await renderPdfPreview(originalPdfBytes, 'originalPdfCanvas');
+        
+        hideProgress();
+        showSuccess(`${files.length} PDFs loaded! Please select a party from the list.`);
+        
+    } catch (error) {
+        hideProgress();
+        showError('Error processing PDFs: ' + error.message);
+        console.error('Error:', error);
+    }
+}
+
+
+        // Handle XLS file upload
+        async function handleXlsUpload(event, brand) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const validTypes = ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+            if (!validTypes.includes(file.type)) {
+                showError('Please upload an Excel file (.xls or .xlsx)');
+                return;
+            }
+
+            showProgress('Processing Excel file...');
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const data = new Uint8Array(arrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // Get first sheet
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                
+                // Process the data (skip header row)
+                const newParties = {};
+                for (let i = 1; i < jsonData.length; i++) {
+                    const row = jsonData[i];
+                    if (!row[5]) continue; // Skip if no party name (column F)
+                    
+                    // Sanitize data and ensure no undefined values
+                    const partyName = row[5] ? row[5].toString().trim() : '';
+                    if (!partyName) continue; // Skip if party name is empty
+                    
+                    // Determine state
+                    let state = 'GOA(30)';
+                    if (row[8] && row[8].toString().includes('MAHARASHTRA')) {
+                        state = 'MAHARASHTRA(27)';
+                    }
+                    
+                    // Get phone numbers (columns N,O,P,Q)
+                    const phoneNumbers = [row[13], row[14], row[15], row[16]]
+                        .filter(num => num !== undefined && num !== null && num !== '')
+                        .map(num => num.toString().trim());
+                    
+                    // Create party data with default values to prevent undefined
+                    const partyData = {
+                        partyName: partyName,
+                        address1: row[6] ? row[6].toString().trim() : '',
+                        address2: row[7] ? row[7].toString().trim() : '',
+                        city: row[3] ? row[3].toString().trim() : '',
+                        state: state,
+                        phone1: phoneNumbers[0] || '',
+                        phone2: phoneNumbers[1] || '',
+                        gst: row[19] ? row[19].toString().trim() : 'NA',
+                        brand: brand || 'defaultBrand' // Ensure brand is never undefined
+                    };
+
+                    // Generate a unique key for each party
+                    const partyKey = database.ref(`brands/${brand}/parties`).push().key;
+                    newParties[`brands/${brand}/parties/${partyKey}`] = partyData;
+                }
+                
+                // Perform the update
+                await database.ref().update(newParties);
+                showSuccess(`${Object.keys(newParties).length} parties successfully imported!`);
+                await loadParties(brand); // Refresh the party list
+                
+            } catch (error) {
+                hideProgress();
+                showError('Error processing Excel file: ' + error.message);
+                console.error('Error:', error);
+            } finally {
+                // Reset the file input
+                event.target.value = '';
+            }
+        }
+
+        // Modal functions
+        function openAddPartyModal() {
+            document.getElementById('addPartyModal').style.display = 'block';
+            toggleFabMenu(); // Close FAB menu if open
+        }
+
+        function closeAddPartyModal() {
+            document.getElementById('addPartyModal').style.display = 'none';
+            document.getElementById('partyForm').reset();
+        }
+
+        // Save new party to Firestore
+        async function saveNewParty(brand) {
+            const form = document.getElementById('partyForm');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            showProgress('Saving new party...');
+            
+            try {
+                const partyData = {
+                    partyName: document.getElementById('modalPartyName').value.trim(),
+                    address1: document.getElementById('modalAddress1').value.trim(),
+                    address2: document.getElementById('modalAddress2').value.trim(),
+                    city: document.getElementById('modalCity').value.trim(),
+                    state: document.getElementById('modalState').value,
+                    phone1: document.getElementById('modalPhone1').value.trim(),
+                    phone2: document.getElementById('modalPhone2').value.trim(),
+                    gst: document.getElementById('modalGst').value.trim() || 'NA',
+                    brand: brand
+                };
+                
+                // Check if party already exists
+                const partyRef = database.ref(`brands/${brand}/parties`);
+                const snapshot = await partyRef.orderByChild('partyName').equalTo(partyData.partyName).once('value');
+                
+                if (snapshot.exists()) {
+                    showError('Party with this name already exists!');
+                } else {
+                    const newPartyRef = partyRef.push();
+                    await newPartyRef.set(partyData);
+                    showSuccess('Party saved successfully!');
+                    await loadParties(brand); // Refresh the party list
+                    closeAddPartyModal();
+                }
+            } catch (error) {
+                hideProgress();
+                showError('Error saving party: ' + error.message);
+                console.error('Error:', error);
+            }
+        }
+
+        // Generate modified PDF with selected party data
+        async function generateModifiedPDF() {
+    const selectedPartyId = document.getElementById('partySelect').value;
+    if (!selectedPartyId) {
+        showError('Please select a party first.');
+        return;
+    }
+
+    if (uploadedPdfFiles.length === 0 || !detectedAreas) {
+        showError('Please upload PDF files first.');
+        return;
+    }
+
+    const selectedParty = parties.find(p => p.id === selectedPartyId);
+    if (!selectedParty) {
+        showError('Selected party not found.');
+        return;
+    }
+
+    showProgress(`Processing ${uploadedPdfFiles.length} PDF files...`);
+    processedPdfDocs = []; // Reset processed documents array
+
+    try {
+        // Process all PDF files
+        for (let i = 0; i < uploadedPdfFiles.length; i++) {
+            updateProgress(`Processing file ${i+1} of ${uploadedPdfFiles.length}`, (i+1)/uploadedPdfFiles.length*100);
+            
+            const file = uploadedPdfFiles[i];
+            const arrayBuffer = await file.arrayBuffer();
+            const pdfBytes = new Uint8Array(arrayBuffer);
+            
+            const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+            const pages = pdfDoc.getPages();
+            const firstPage = pages[0];
+
+            // Prepare data for PDF
+            const data = {
+                partyName: selectedParty.partyName,
+                address: [selectedParty.address1, selectedParty.address2].filter(Boolean).join(' '),
+                city: selectedParty.city,
+                state: selectedParty.state,
+                phone: [selectedParty.phone1, selectedParty.phone2].filter(Boolean).join(', '),
+                gst: selectedParty.gst || 'NA'
+            };
+
+            // Clear detected areas with white rectangles
+            firstPage.drawRectangle({
+                x: detectedAreas.billToArea.x,
+                y: detectedAreas.billToArea.y,
+                width: detectedAreas.billToArea.width,
+                height: detectedAreas.billToArea.height,
+                color: PDFLib.rgb(1, 1, 1),
+                borderWidth: 0
+            });
+
+            firstPage.drawRectangle({
+                x: detectedAreas.shipToArea.x,
+                y: detectedAreas.shipToArea.y,
+                width: detectedAreas.shipToArea.width,
+                height: detectedAreas.shipToArea.height,
+                color: PDFLib.rgb(1, 1, 1),
+                borderWidth: 0
+            });
+
+            // Add Bill To content
+            await addContentToArea(firstPage, detectedAreas.billToArea, data, 'Bill To');
+            
+            // Add Ship To content (same data)
+            await addContentToArea(firstPage, detectedAreas.shipToArea, data, 'Ship To');
+
+            // Add the modified document to our array
+            processedPdfDocs.push(pdfDoc);
+        }
+
+        // Merge all PDFs into one
+        const mergedPdf = await PDFLib.PDFDocument.create();
+        
+        for (const pdfDoc of processedPdfDocs) {
+            const pages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+            pages.forEach(page => mergedPdf.addPage(page));
+        }
+
+        // Save the merged PDF
+        modifiedPdfBytes = await mergedPdf.save();
+
+        // Render preview of first modified page
+        const firstModifiedPdfBytes = await processedPdfDocs[0].save();
+        await renderPdfPreview(firstModifiedPdfBytes, 'modifiedPdfCanvas');
+
+        // Show preview and download sections
+        document.getElementById('previewSection').style.display = 'block';
+        document.getElementById('downloadSection').style.display = 'block';
+        document.getElementById('actionSection').style.display = 'none';
+
+        hideProgress();
+        showSuccess(`Successfully processed ${uploadedPdfFiles.length} PDF files and merged them into one!`);
+
+    } catch (error) {
+        hideProgress();
+        showError('Error generating modified PDFs: ' + error.message);
+        console.error('PDF generation error:', error);
+    }
+}
+
+function updateProgress(message, percent) {
+    document.getElementById('progressText').textContent = message;
+    document.getElementById('progressPercent').textContent = `${Math.round(percent)}%`;
+    document.getElementById('progressBar').style.width = `${percent}%`;
+    
+    const status = document.getElementById('status');
+    status.style.display = 'block';
+    status.textContent = message;
+    status.className = 'status-message';
+}
+
+
+
+        // Function to perform line tracing (same as before)
+        async function performLineTracing(pdfBytes) {
+            try {
+                const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+                const pages = pdfDoc.getPages();
+                const firstPage = pages[0];
+                const { width, height } = firstPage.getSize();
+
+                // Simulate line tracing analysis
+                const lines = await extractLines(firstPage);
+                const rectangles = detectRectangles(lines);
+                
+                // Find Bill To and Ship To areas based on detected rectangles
+                const areas = identifyInvoiceAreas(rectangles, width, height);
+                
+                return {
+                    pageWidth: width,
+                    pageHeight: height,
+                    lines: lines,
+                    rectangles: rectangles,
+                    billToArea: areas.billTo,
+                    shipToArea: areas.shipTo
+                };
+                
+            } catch (error) {
+                console.error('Error in line tracing:', error);
+                throw error;
+            }
+        }
+
+        // Function to extract lines (same as before)
+        async function extractLines(page) {
+            const { width, height } = page.getSize();
+            
+            const lines = [
+                // Main document borders
+                { x1: 24.96, y1: height - 50, x2: width - 25, y2: height - 50, type: 'horizontal' },
+                
+                // Bill To section boundaries (left rectangle)
+                { x1: 24.96, y1: height - 81.27, x2: 329.99 - 14.17, y2: height - 81.27, type: 'horizontal' },
+                { x1: 24.96, y1: height - 149.07, x2: 329.99 - 14.17, y2: height - 149.07, type: 'horizontal' },
+                { x1: 24.96, y1: height - 81.27, x2: 24.96, y2: height - 149.07, type: 'vertical' },
+                { x1: 329.99 - 14.17, y1: height - 81.27, x2: 329.99 - 14.17, y2: height - 149.07, type: 'vertical' },
+                
+                // Ship To section boundaries (right rectangle - half width of left)
+                { x1: 329.99, y1: height - 81.27, x2: width - 25, y2: height - 81.27, type: 'horizontal' },
+                { x1: 329.99, y1: height - 149.07, x2: width - 25, y2: height - 149.07, type: 'horizontal' },
+                { x1: 329.99, y1: height - 81.27, x2: 329.99, y2: height - 149.07, type: 'vertical' },
+                { x1: width - 25, y1: height - 81.27, x2: width - 25, y2: height - 149.07, type: 'vertical' },
+                
+                // Additional table structure lines
+                { x1: 24.96, y1: height - 200, x2: width - 25, y2: height - 200, type: 'horizontal' },
+                { x1: 24.96, y1: height - 220, x2: width - 25, y2: height - 220, type: 'horizontal' },
+            ];
+            
+            return lines;
+        }
+
+        // Function to detect rectangles (same as before)
+        function detectRectangles(lines) {
+            const rectangles = [];
+            const horizontalLines = lines.filter(l => l.type === 'horizontal').sort((a, b) => b.y1 - a.y1);
+            const verticalLines = lines.filter(l => l.type === 'vertical').sort((a, b) => a.x1 - b.x1);
+            
+            // Find rectangles by matching horizontal and vertical lines
+            for (let i = 0; i < horizontalLines.length - 1; i++) {
+                for (let j = i + 1; j < horizontalLines.length; j++) {
+                    const topLine = horizontalLines[i];
+                    const bottomLine = horizontalLines[j];
+                    
+                    // Find matching vertical lines
+                    for (let k = 0; k < verticalLines.length - 1; k++) {
+                        for (let l = k + 1; l < verticalLines.length; l++) {
+                            const leftLine = verticalLines[k];
+                            const rightLine = verticalLines[l];
+                            
+                            // Check if lines form a rectangle
+                            if (isRectangle(topLine, bottomLine, leftLine, rightLine)) {
+                                rectangles.push({
+                                    x: leftLine.x1,
+                                    y: bottomLine.y1,
+                                    width: rightLine.x1 - leftLine.x1,
+                                    height: topLine.y1 - bottomLine.y1
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return rectangles;
+        }
+
+        // Helper function to check if lines form a rectangle (same as before)
+        function isRectangle(topLine, bottomLine, leftLine, rightLine) {
+            const tolerance = 5;
+            
+            return (
+                Math.abs(topLine.x1 - leftLine.x1) < tolerance &&
+                Math.abs(topLine.x2 - rightLine.x1) < tolerance &&
+                Math.abs(bottomLine.x1 - leftLine.x1) < tolerance &&
+                Math.abs(bottomLine.x2 - rightLine.x1) < tolerance &&
+                Math.abs(leftLine.y1 - topLine.y1) < tolerance &&
+                Math.abs(leftLine.y2 - bottomLine.y1) < tolerance &&
+                Math.abs(rightLine.y1 - topLine.y1) < tolerance &&
+                Math.abs(rightLine.y2 - bottomLine.y1) < tolerance
+            );
+        }
+
+        // Function to identify invoice areas (same as before)
+        function identifyInvoiceAreas(rectangles, pageWidth, pageHeight) {
+            // Using your exact coordinates:
+            // Bill To: Rect(24.959989547729492, 81.26595306396484, 53.35540008544922, 89.78337097167969)
+            // Ship To: Rect(329.9998474121094, 81.26595306396484, 363.4352722167969, 89.78337097167969)
+            // GSTIN bottom: 149.07
+            
+            // Left rectangle (Bill To area) - unchanged
+            // Starts from Bill To position, ends 0.5cm (14.17 points) before Ship To
+            const leftWidth = 329.99 - 24.96 - 14.17; // Width minus 0.5cm gap
+            
+            const billTo = {
+                x: 24.96,  // Exact Bill To x-coordinate
+                y: pageHeight - 149.07,  // Bottom at GSTIN bottom position
+                width: leftWidth,  // Width to 0.5cm before Ship To
+                height: 149.07 - 81.27  // Height from Bill To to GSTIN bottom (67.8 points)
+            };
+            
+            // Right rectangle (Ship To area) - EXPANDED 3cm (85.04 points) to the right
+            const originalRightWidth = leftWidth / 2;  // Original half width of left rectangle
+            const expansionPoints = 91.04;  // 3cm = 85.04 points (1cm = 28.35 points)
+            const newRightWidth = originalRightWidth + expansionPoints;  // Expanded width
+            
+            const shipTo = {
+                x: 329.99,  // Same Ship To x-coordinate (start position unchanged)
+                y: pageHeight - 149.07,  // Same bottom as Bill To
+                width: newRightWidth,  // Original width + 85.04 points (3cm expansion)
+                height: 149.07 - 81.27  // Same height as Bill To area
+            };
+            
+            return { billTo, shipTo };
+        }
+
+        // Function to add content to detected areas (same as before)
+        async function addContentToArea(page, area, data, label) {
+            const HEADER_FONT_SIZE = 8.9;
+            const ADDRESS_FONT_SIZE = 8.5;
+            const DETAILS_FONT_SIZE = 8.5;
+            const PHONE_FONT_SIZE = 8.3;
+            const GST_FONT_SIZE = 8.3;
+            
+            const LINE_ADJUSTMENTS = {
+                header: 0,
+                address1: 3,
+                address2: 6,
+                cityState: 9,
+                phone: 11,
+                gst: 10
+            };
+            
+            const lineHeight = 12;
+            const leftPadding = 0.17;
+            const RIGHT_PADDING = {
+                'Bill To': 0.17,
+                'Ship To': 0.34
+            };
+            const startY = area.y + area.height - 12 + 5.67;
+            
+            const pdfDoc = page.doc;
+            const arialBoldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+            const almaraiFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+
+            // Clear the area
+            page.drawRectangle({
+                x: area.x,
+                y: area.y,
+                width: area.width,
+                height: area.height,
+                color: PDFLib.rgb(1, 1, 1),
+                borderWidth: 0
+            });
+
+            // Get the appropriate right padding based on label
+            const rightPadding = RIGHT_PADDING[label] || RIGHT_PADDING['Bill To'];
+
+            // Calculate line positions
+            let currentY = startY;
+            const linePositions = {
+                header: currentY + LINE_ADJUSTMENTS.header,
+                address1: currentY - (lineHeight + 2) + LINE_ADJUSTMENTS.address1,
+                address2: currentY - (lineHeight + 2) * 2 + LINE_ADJUSTMENTS.address2,
+                cityState: currentY - (lineHeight + 2) * 3 + LINE_ADJUSTMENTS.cityState,
+                phone: currentY - (lineHeight + 2) * 4 + LINE_ADJUSTMENTS.phone,
+                gst: currentY - (lineHeight + 2) * 5 + LINE_ADJUSTMENTS.gst
+            };
+
+            // Calculate available width for text with padding
+            const availableWidth = area.width - (leftPadding + rightPadding);
+
+            // 1. Header: Bill To/Ship To + Party Name
+            if (data.partyName && linePositions.header > area.y) {
+                const headerText = `${label}: ${data.partyName.toUpperCase()}`;
+                page.drawText(headerText, {
+                    x: area.x + leftPadding,
+                    y: linePositions.header,
+                    size: HEADER_FONT_SIZE,
+                    color: PDFLib.rgb(0, 0, 0),
+                    font: arialBoldFont,
+                    maxWidth: availableWidth
+                });
+            }
+
+            // 2. Address Lines (strictly limited to 2 lines)
+            if (data.address) {
+                const addressLines = data.address.split('\n').filter(line => line.trim());
+                
+                // First address line
+                if (addressLines.length > 0 && linePositions.address1 > area.y) {
+                    page.drawText(addressLines[0], {
+                        x: area.x + leftPadding,
+                        y: linePositions.address1,
+                        size: ADDRESS_FONT_SIZE,
+                        color: PDFLib.rgb(0, 0, 0),
+                        font: almaraiFont,
+                        maxWidth: availableWidth
+                    });
+                }
+                
+                // Second address line
+                if (addressLines.length > 1 && linePositions.address2 > area.y) {
+                    page.drawText(addressLines[1], {
+                        x: area.x + leftPadding,
+                        y: linePositions.address2,
+                        size: ADDRESS_FONT_SIZE,
+                        color: PDFLib.rgb(0, 0, 0),
+                        font: almaraiFont,
+                        maxWidth: availableWidth
+                    });
+                }
+            }
+
+            // 3. City and State
+            if ((data.city || data.state) && linePositions.cityState > area.y) {
+                const cityText = data.city ? data.city.trim() : '';
+                const stateText = data.state ? `State: ${data.state.trim()}` : '';
+                
+                if (cityText) {
+                    page.drawText(cityText, {
+                        x: area.x + leftPadding,
+                        y: linePositions.cityState,
+                        size: DETAILS_FONT_SIZE,
+                        color: PDFLib.rgb(0, 0, 0),
+                        font: almaraiFont,
+                        maxWidth: availableWidth
+                    });
+                }
+                
+                if (stateText) {
+                    const cityWidth = almaraiFont.widthOfTextAtSize(cityText, DETAILS_FONT_SIZE);
+                    const spacingBetween = 60;
+                    const stateX = area.x + leftPadding + cityWidth + spacingBetween;
+                    
+                    const stateWidth = almaraiFont.widthOfTextAtSize(stateText, DETAILS_FONT_SIZE);
+                    const maxStateX = area.x + area.width - stateWidth - rightPadding;
+                    const finalStateX = Math.min(stateX, maxStateX);
+                    
+                    page.drawText(stateText, {
+                        x: finalStateX,
+                        y: linePositions.cityState,
+                        size: DETAILS_FONT_SIZE,
+                        color: PDFLib.rgb(0, 0, 0),
+                        font: almaraiFont,
+                        maxWidth: availableWidth - cityWidth - spacingBetween
+                    });
+                }
+            }
+
+            // 4. Phone Number
+            if (data.phone && linePositions.phone > area.y) {
+                page.drawText(`Phone: ${data.phone}`, {
+                    x: area.x + leftPadding,
+                    y: linePositions.phone,
+                    size: PHONE_FONT_SIZE,
+                    color: PDFLib.rgb(0, 0, 0),
+                    font: almaraiFont,
+                    maxWidth: availableWidth
+                });
+            }
+
+            // 5. GSTIN
+            if (data.gst) {
+                page.drawText(`GSTIN: ${data.gst}`, {
+                    x: area.x + leftPadding,
+                    y: linePositions.gst,
+                    size: GST_FONT_SIZE,
+                    color: PDFLib.rgb(0, 0, 0),
+                    font: almaraiFont,
+                    maxWidth: availableWidth
+                });
+            }
+        }
+
+        // Function to render PDF preview with reduced bottom height
+        async function renderPdfPreview(pdfBytes, canvasId) {
+            try {
+                // Initialize PDF.js
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js';
+                
+                const loadingTask = pdfjsLib.getDocument({data: pdfBytes});
+                const pdf = await loadingTask.promise;
+                
+                // Get the first page
+                const page = await pdf.getPage(1);
+                
+                // Set up canvas
+                const canvas = document.getElementById(canvasId);
+                const context = canvas.getContext('2d');
+                
+                // Get full page viewport to calculate coordinates
+                const fullViewport = page.getViewport({scale: 1.0});
+                
+                // Define the area we want to show (top 300 points, cutting off bottom)
+                const showHeight = 300; // Reduced height to show less from bottom
+                const scale = 1.0; // Zoom level
+                
+                // Create a viewport focused on the top area
+                const viewport = page.getViewport({
+                    scale: scale,
+                    offsetY: 0 // Start from top
+                });
+                
+                // Set canvas dimensions
+                canvas.width = viewport.width;
+                canvas.height = showHeight * scale;
+                
+                // Clear canvas
+                context.fillStyle = '#ffffff';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Render PDF page (only the top portion)
+                await page.render({
+                    canvasContext: context,
+                    viewport: viewport,
+                    transform: [1, 0, 0, 1, 0, 0], // No vertical offset needed
+                    intent: 'print',
+                    // Clip the rendering to our desired height
+                    clipX: 0,
+                    clipY: fullViewport.height - showHeight,
+                    clipWidth: fullViewport.width,
+                    clipHeight: showHeight
+                }).promise;
+                
+            } catch (error) {
+                console.error('Error rendering PDF preview:', error);
+                // Fallback to simple text if rendering fails
+                const canvas = document.getElementById(canvasId);
+                const ctx = canvas.getContext('2d');
+                canvas.width = 400;
+                canvas.height = 200;
+                ctx.fillStyle = '#f9f9f9';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.fillText('PDF Preview Unavailable', 10, 30);
+            }
+        }
+
+        // Function to download modified PDF (same as before)
+       async function downloadModifiedPDF() {
+    if (!modifiedPdfBytes) {
+        showError('No modified PDF available for download.');
+        return;
+    }
+
+    try {
+        // Extract text from the first PDF to find invoice number and date
+        const firstPdfBytes = await processedPdfDocs[0].save();
+        const textContent = await extractTextFromPdf(firstPdfBytes);
+        
+        // 1. Extract invoice number
+        let invoiceNumber = "INV";
+        const invoiceNoMatch = textContent.match(/Invoice No\s*:\s*([A-Za-z0-9]+)/i);
+        if (invoiceNoMatch && invoiceNoMatch[1]) {
+            invoiceNumber = invoiceNoMatch[1].trim();
+        }
+        
+        // 2. Extract invoice date
+        let invoiceDate = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+        const invoiceDateMatch = textContent.match(/Invoice Date\s*:\s*(\d{1,2}-[A-Za-z]{3}-\d{4})/i);
+        if (invoiceDateMatch && invoiceDateMatch[1]) {
+            try {
+                const dateParts = invoiceDateMatch[1].split('-');
+                if (dateParts.length === 3) {
+                    const day = dateParts[0].padStart(2, '0');
+                    const month = String(new Date(`${dateParts[1]} 1, 2000`).getMonth() + 1).padStart(2, '0');
+                    invoiceDate = `${day}.${month}`;
+                }
+            } catch (e) {
+                console.error('Error parsing date:', e);
+            }
+        }
+        
+        // 3. Get party name from selected dropdown
+        const selectedPartyId = document.getElementById('partySelect').value;
+        let partyName = "Party";
+        if (selectedPartyId) {
+            const selectedParty = parties.find(p => p.id === selectedPartyId);
+            if (selectedParty) {
+                partyName = selectedParty.partyName
+                    .replace(/\s+/g, '_')
+                    .replace(/[^a-zA-Z0-9_]/g, '')
+                    .substring(0, 30);
+            }
+        }
+        
+        // Generate filename
+        const fileName = `${invoiceNumber}_${invoiceDate}_${partyName}_MERGED.pdf`;
+        
+        // Create download
+        const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showSuccess(`Merged PDF downloaded successfully as: ${fileName}`);
+        
+    } catch (error) {
+        console.error('Error during PDF download:', error);
+        // Fallback to default download
+        const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'merged_invoices.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showError('Error generating filename. Downloaded as merged_invoices.pdf');
+    }
+}
+        async function extractTextFromPdf(pdfBytes) {
+            // Initialize PDF.js
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js';
+            
+            const loadingTask = pdfjsLib.getDocument({data: pdfBytes});
+            const pdf = await loadingTask.promise;
+            const page = await pdf.getPage(1);
+            const textContent = await page.getTextContent();
+            
+            return textContent.items.map(item => item.str).join(' ');
+        }
+
+        // Helper functions for progress/status
+        function showProgress(message) {
+            document.getElementById('progress').style.display = 'block';
+            document.getElementById('progressBar').style.width = '100%';
+            document.getElementById('progressText').textContent = message;
+            document.getElementById('progressPercent').textContent = '100%';
+            
+            const status = document.getElementById('status');
+            status.style.display = 'block';
+            status.textContent = message;
+            status.className = 'status-message';
+        }
+
+        function hideProgress() {
+            document.getElementById('progress').style.display = 'none';
+            const status = document.getElementById('status');
+            status.style.display = 'none';
+        }
+
+        function showError(message) {
+            const status = document.getElementById('status');
+            status.style.display = 'block';
+            status.textContent = message;
+            status.className = 'status-message status-error';
+        }
+
+        function showSuccess(message) {
+            const status = document.getElementById('status');
+            status.style.display = 'block';
+            status.textContent = message;
+            status.className = 'status-message status-success';
+        }
+    </script>
+</body>
+</html>
