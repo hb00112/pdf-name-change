@@ -1159,47 +1159,52 @@
         }
 
         // Save new party to Firestore
-        async function saveNewParty(brand) {
-            const form = document.getElementById('partyForm');
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
+  // Save new party to Firebase - Fixed version
+async function saveNewParty() {
+    const form = document.getElementById('partyForm');
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
 
-            showProgress('Saving new party...');
-            
-            try {
-                const partyData = {
-                    partyName: document.getElementById('modalPartyName').value.trim(),
-                    address1: document.getElementById('modalAddress1').value.trim(),
-                    address2: document.getElementById('modalAddress2').value.trim(),
-                    city: document.getElementById('modalCity').value.trim(),
-                    state: document.getElementById('modalState').value,
-                    phone1: document.getElementById('modalPhone1').value.trim(),
-                    phone2: document.getElementById('modalPhone2').value.trim(),
-                    gst: document.getElementById('modalGst').value.trim() || 'NA',
-                    brand: brand
-                };
-                
-                // Check if party already exists
-                const partyRef = database.ref(`brands/${brand}/parties`);
-                const snapshot = await partyRef.orderByChild('partyName').equalTo(partyData.partyName).once('value');
-                
-                if (snapshot.exists()) {
-                    showError('Party with this name already exists!');
-                } else {
-                    const newPartyRef = partyRef.push();
-                    await newPartyRef.set(partyData);
-                    showSuccess('Party saved successfully!');
-                    await loadParties(brand); // Refresh the party list
-                    closeAddPartyModal();
-                }
-            } catch (error) {
-                hideProgress();
-                showError('Error saving party: ' + error.message);
-                console.error('Error:', error);
-            }
+    showProgress('Saving new party...');
+    
+    try {
+        const partyData = {
+            partyName: document.getElementById('modalPartyName').value.trim(),
+            address1: document.getElementById('modalAddress1').value.trim(),
+            address2: document.getElementById('modalAddress2').value.trim(),
+            city: document.getElementById('modalCity').value.trim(),
+            state: document.getElementById('modalState').value,
+            phone1: document.getElementById('modalPhone1').value.trim(),
+            phone2: document.getElementById('modalPhone2').value.trim(),
+            gst: document.getElementById('modalGst').value.trim() || 'NA'
+        };
+        
+        // Use the same path structure as XLS parties (without brand dependency)
+        const partiesRef = database.ref('brands/undefined/parties');
+        
+        // Check if party already exists
+        const snapshot = await partiesRef.orderByChild('partyName').equalTo(partyData.partyName).once('value');
+        
+        if (snapshot.exists()) {
+            hideProgress();
+            showError('Party with this name already exists!');
+        } else {
+            // Generate new key and save
+            const newPartyRef = partiesRef.push();
+            await newPartyRef.set(partyData);
+            hideProgress();
+            showSuccess('Party saved successfully!');
+           // await loadParties('defaultBrand'); // Refresh the party list
+            closeAddPartyModal();
         }
+    } catch (error) {
+        hideProgress();
+        showError('Error saving party: ' + error.message);
+        console.error('Error:', error);
+    }
+}
 
         // Generate modified PDF with selected party data
         async function generateModifiedPDF() {
