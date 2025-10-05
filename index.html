@@ -1209,7 +1209,7 @@ async function saveNewParty() {
 }
 
         // Generate modified PDF with selected party data
-        async function generateModifiedPDF() {
+       async function generateModifiedPDF() {
     const selectedPartyId = document.getElementById('partySelect').value;
     if (!selectedPartyId) {
         showError('Please select a party first.');
@@ -1242,9 +1242,34 @@ async function saveNewParty() {
             const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
             const pages = pdfDoc.getPages();
             const firstPage = pages[0];
+            
+            // IMPORTANT: Recalculate areas for THIS specific page
+            const pageHeight = firstPage.getHeight();
+            const pageWidth = firstPage.getWidth();
+            
+            // Recalculate areas with this page's dimensions
+            const leftWidth = 329.99 - 24.96 - 14.17;
+            const originalRightWidth = leftWidth / 2;
+            const expansionPoints = 91.04;
+            const newRightWidth = originalRightWidth + expansionPoints;
+            
+            const currentPageAreas = {
+                billToArea: {
+                    x: 24.96,
+                    y: pageHeight - 149.07,
+                    width: leftWidth,
+                    height: 149.07 - 81.27
+                },
+                shipToArea: {
+                    x: 329.99,
+                    y: pageHeight - 149.07,
+                    width: newRightWidth,
+                    height: 149.07 - 81.27
+                }
+            };
 
-            // Prepare data for PDF
-            const data = {
+            // Prepare Bill To data
+            const billToData = {
                 partyName: selectedParty.partyName,
                 address: [selectedParty.address1, selectedParty.address2].filter(Boolean).join(' '),
                 city: selectedParty.city,
@@ -1253,30 +1278,46 @@ async function saveNewParty() {
                 gst: selectedParty.gst || 'NA'
             };
 
+            // Special case for POSHAK RETAIL - different Ship To address
+            let shipToData;
+            if (selectedParty.partyName.toUpperCase() === 'POSHAK RETAIL') {
+                shipToData = {
+                    partyName: 'TAVORA POSHAK',
+                    address: 'PANJIM',
+                    city: 'PANJIM',
+                    state: 'GOA(30)',
+                    phone: '7038036866',
+                    gst: '30AAVPL8498C1ZA'
+                };
+            } else {
+                // For all other parties, Ship To is same as Bill To
+                shipToData = billToData;
+            }
+
             // Clear detected areas with white rectangles
             firstPage.drawRectangle({
-                x: detectedAreas.billToArea.x,
-                y: detectedAreas.billToArea.y,
-                width: detectedAreas.billToArea.width,
-                height: detectedAreas.billToArea.height,
+                x: currentPageAreas.billToArea.x,
+                y: currentPageAreas.billToArea.y,
+                width: currentPageAreas.billToArea.width,
+                height: currentPageAreas.billToArea.height,
                 color: PDFLib.rgb(1, 1, 1),
                 borderWidth: 0
             });
 
             firstPage.drawRectangle({
-                x: detectedAreas.shipToArea.x,
-                y: detectedAreas.shipToArea.y,
-                width: detectedAreas.shipToArea.width,
-                height: detectedAreas.shipToArea.height,
+                x: currentPageAreas.shipToArea.x,
+                y: currentPageAreas.shipToArea.y,
+                width: currentPageAreas.shipToArea.width,
+                height: currentPageAreas.shipToArea.height,
                 color: PDFLib.rgb(1, 1, 1),
                 borderWidth: 0
             });
 
             // Add Bill To content
-            await addContentToArea(firstPage, detectedAreas.billToArea, data, 'Bill To');
+            await addContentToArea(firstPage, currentPageAreas.billToArea, billToData, 'Bill To');
             
-            // Add Ship To content (same data)
-            await addContentToArea(firstPage, detectedAreas.shipToArea, data, 'Ship To');
+            // Add Ship To content (uses special data for POSHAK RETAIL, otherwise same as Bill To)
+            await addContentToArea(firstPage, currentPageAreas.shipToArea, shipToData, 'Ship To');
 
             // Add the modified document to our array
             processedPdfDocs.push(pdfDoc);
@@ -1468,163 +1509,161 @@ function updateProgress(message, percent) {
         }
 
         // Function to add content to detected areas (same as before)
-        async function addContentToArea(page, area, data, label) {
-            const HEADER_FONT_SIZE = 8.9;
-            const ADDRESS_FONT_SIZE = 8.5;
-            const DETAILS_FONT_SIZE = 8.5;
-            const PHONE_FONT_SIZE = 8.3;
-            const GST_FONT_SIZE = 8.3;
-            
-            const LINE_ADJUSTMENTS = {
-                header: 0,
-                address1: 3,
-                address2: 6,
-                cityState: 9,
-                phone: 11,
-                gst: 10
-            };
-            
-            const lineHeight = 12;
-            const leftPadding = 0.17;
-            const RIGHT_PADDING = {
-                'Bill To': 0.17,
-                'Ship To': 0.34
-            };
-            const startY = area.y + area.height - 12 + 5.67;
-            
-            const pdfDoc = page.doc;
-            const arialBoldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
-            const almaraiFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+       async function addContentToArea(page, area, data, label) {
+    const HEADER_FONT_SIZE = 8.9;
+    const ADDRESS_FONT_SIZE = 8.5;
+    const DETAILS_FONT_SIZE = 8.5;
+    const PHONE_FONT_SIZE = 8.3;
+    const GST_FONT_SIZE = 8.3;
+    
+    const LINE_ADJUSTMENTS = {
+        header: 0,
+        address1: 3,
+        address2: 6,
+        cityState: 9,
+        phone: 11,
+        gst: 10
+    };
+    
+    const lineHeight = 12;
+    const leftPadding = 0.17;
+    const RIGHT_PADDING = {
+        'Bill To': 0.17,
+        'Ship To': 0.34
+    };
+    const startY = area.y + area.height - 12 + 5.67;
+    
+    const pdfDoc = page.doc;
+    const arialBoldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+    const almaraiFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
 
-            // Clear the area
-            page.drawRectangle({
-                x: area.x,
-                y: area.y,
-                width: area.width,
-                height: area.height,
-                color: PDFLib.rgb(1, 1, 1),
-                borderWidth: 0
+    // Clear the area
+    page.drawRectangle({
+        x: area.x,
+        y: area.y,
+        width: area.width,
+        height: area.height,
+        color: PDFLib.rgb(1, 1, 1),
+        borderWidth: 0
+    });
+
+    const rightPadding = RIGHT_PADDING[label] || RIGHT_PADDING['Bill To'];
+
+    // Calculate line positions
+    let currentY = startY;
+    const linePositions = {
+        header: currentY + LINE_ADJUSTMENTS.header,
+        address1: currentY - (lineHeight + 2) + LINE_ADJUSTMENTS.address1,
+        address2: currentY - (lineHeight + 2) * 2 + LINE_ADJUSTMENTS.address2,
+        cityState: currentY - (lineHeight + 2) * 3 + LINE_ADJUSTMENTS.cityState,
+        phone: currentY - (lineHeight + 2) * 4 + LINE_ADJUSTMENTS.phone,
+        gst: currentY - (lineHeight + 2) * 5 + LINE_ADJUSTMENTS.gst
+    };
+
+    const availableWidth = area.width - (leftPadding + rightPadding);
+
+    // 1. Header: Bill To/Ship To + Party Name
+    if (data.partyName && linePositions.header > area.y) {
+        const headerText = `${label}: ${data.partyName.toUpperCase()}`;
+        page.drawText(headerText, {
+            x: area.x + leftPadding,
+            y: linePositions.header,
+            size: HEADER_FONT_SIZE,
+            color: PDFLib.rgb(0, 0, 0),
+            font: arialBoldFont,
+            maxWidth: availableWidth
+        });
+    }
+
+    // 2. Address Lines (strictly limited to 2 lines)
+    if (data.address) {
+        const addressLines = data.address.split('\n').filter(line => line.trim());
+        
+        // First address line
+        if (addressLines.length > 0 && linePositions.address1 > area.y) {
+            page.drawText(addressLines[0], {
+                x: area.x + leftPadding,
+                y: linePositions.address1,
+                size: ADDRESS_FONT_SIZE,
+                color: PDFLib.rgb(0, 0, 0),
+                font: almaraiFont,
+                maxWidth: availableWidth
             });
-
-            // Get the appropriate right padding based on label
-            const rightPadding = RIGHT_PADDING[label] || RIGHT_PADDING['Bill To'];
-
-            // Calculate line positions
-            let currentY = startY;
-            const linePositions = {
-                header: currentY + LINE_ADJUSTMENTS.header,
-                address1: currentY - (lineHeight + 2) + LINE_ADJUSTMENTS.address1,
-                address2: currentY - (lineHeight + 2) * 2 + LINE_ADJUSTMENTS.address2,
-                cityState: currentY - (lineHeight + 2) * 3 + LINE_ADJUSTMENTS.cityState,
-                phone: currentY - (lineHeight + 2) * 4 + LINE_ADJUSTMENTS.phone,
-                gst: currentY - (lineHeight + 2) * 5 + LINE_ADJUSTMENTS.gst
-            };
-
-            // Calculate available width for text with padding
-            const availableWidth = area.width - (leftPadding + rightPadding);
-
-            // 1. Header: Bill To/Ship To + Party Name
-            if (data.partyName && linePositions.header > area.y) {
-                const headerText = `${label}: ${data.partyName.toUpperCase()}`;
-                page.drawText(headerText, {
-                    x: area.x + leftPadding,
-                    y: linePositions.header,
-                    size: HEADER_FONT_SIZE,
-                    color: PDFLib.rgb(0, 0, 0),
-                    font: arialBoldFont,
-                    maxWidth: availableWidth
-                });
-            }
-
-            // 2. Address Lines (strictly limited to 2 lines)
-            if (data.address) {
-                const addressLines = data.address.split('\n').filter(line => line.trim());
-                
-                // First address line
-                if (addressLines.length > 0 && linePositions.address1 > area.y) {
-                    page.drawText(addressLines[0], {
-                        x: area.x + leftPadding,
-                        y: linePositions.address1,
-                        size: ADDRESS_FONT_SIZE,
-                        color: PDFLib.rgb(0, 0, 0),
-                        font: almaraiFont,
-                        maxWidth: availableWidth
-                    });
-                }
-                
-                // Second address line
-                if (addressLines.length > 1 && linePositions.address2 > area.y) {
-                    page.drawText(addressLines[1], {
-                        x: area.x + leftPadding,
-                        y: linePositions.address2,
-                        size: ADDRESS_FONT_SIZE,
-                        color: PDFLib.rgb(0, 0, 0),
-                        font: almaraiFont,
-                        maxWidth: availableWidth
-                    });
-                }
-            }
-
-            // 3. City and State
-            if ((data.city || data.state) && linePositions.cityState > area.y) {
-                const cityText = data.city ? data.city.trim() : '';
-                const stateText = data.state ? `State: ${data.state.trim()}` : '';
-                
-                if (cityText) {
-                    page.drawText(cityText, {
-                        x: area.x + leftPadding,
-                        y: linePositions.cityState,
-                        size: DETAILS_FONT_SIZE,
-                        color: PDFLib.rgb(0, 0, 0),
-                        font: almaraiFont,
-                        maxWidth: availableWidth
-                    });
-                }
-                
-                if (stateText) {
-                    const cityWidth = almaraiFont.widthOfTextAtSize(cityText, DETAILS_FONT_SIZE);
-                    const spacingBetween = 60;
-                    const stateX = area.x + leftPadding + cityWidth + spacingBetween;
-                    
-                    const stateWidth = almaraiFont.widthOfTextAtSize(stateText, DETAILS_FONT_SIZE);
-                    const maxStateX = area.x + area.width - stateWidth - rightPadding;
-                    const finalStateX = Math.min(stateX, maxStateX);
-                    
-                    page.drawText(stateText, {
-                        x: finalStateX,
-                        y: linePositions.cityState,
-                        size: DETAILS_FONT_SIZE,
-                        color: PDFLib.rgb(0, 0, 0),
-                        font: almaraiFont,
-                        maxWidth: availableWidth - cityWidth - spacingBetween
-                    });
-                }
-            }
-
-            // 4. Phone Number
-            if (data.phone && linePositions.phone > area.y) {
-                page.drawText(`Phone: ${data.phone}`, {
-                    x: area.x + leftPadding,
-                    y: linePositions.phone,
-                    size: PHONE_FONT_SIZE,
-                    color: PDFLib.rgb(0, 0, 0),
-                    font: almaraiFont,
-                    maxWidth: availableWidth
-                });
-            }
-
-            // 5. GSTIN
-            if (data.gst) {
-                page.drawText(`GSTIN: ${data.gst}`, {
-                    x: area.x + leftPadding,
-                    y: linePositions.gst,
-                    size: GST_FONT_SIZE,
-                    color: PDFLib.rgb(0, 0, 0),
-                    font: almaraiFont,
-                    maxWidth: availableWidth
-                });
-            }
         }
+        
+        // Second address line
+        if (addressLines.length > 1 && linePositions.address2 > area.y) {
+            page.drawText(addressLines[1], {
+                x: area.x + leftPadding,
+                y: linePositions.address2,
+                size: ADDRESS_FONT_SIZE,
+                color: PDFLib.rgb(0, 0, 0),
+                font: almaraiFont,
+                maxWidth: availableWidth
+            });
+        }
+    }
+
+    // 3. City and State
+    if ((data.city || data.state) && linePositions.cityState > area.y) {
+        const cityText = data.city ? data.city.trim() : '';
+        const stateText = data.state ? `State: ${data.state.trim()}` : '';
+        
+        if (cityText) {
+            page.drawText(cityText, {
+                x: area.x + leftPadding,
+                y: linePositions.cityState,
+                size: DETAILS_FONT_SIZE,
+                color: PDFLib.rgb(0, 0, 0),
+                font: almaraiFont,
+                maxWidth: availableWidth
+            });
+        }
+        
+        if (stateText) {
+            const cityWidth = almaraiFont.widthOfTextAtSize(cityText, DETAILS_FONT_SIZE);
+            const spacingBetween = 60;
+            const stateX = area.x + leftPadding + cityWidth + spacingBetween;
+            
+            const stateWidth = almaraiFont.widthOfTextAtSize(stateText, DETAILS_FONT_SIZE);
+            const maxStateX = area.x + area.width - stateWidth - rightPadding;
+            const finalStateX = Math.min(stateX, maxStateX);
+            
+            page.drawText(stateText, {
+                x: finalStateX,
+                y: linePositions.cityState,
+                size: DETAILS_FONT_SIZE,
+                color: PDFLib.rgb(0, 0, 0),
+                font: almaraiFont,
+                maxWidth: availableWidth - cityWidth - spacingBetween
+            });
+        }
+    }
+
+    // 4. Phone Number
+    if (data.phone && linePositions.phone > area.y) {
+        page.drawText(`Phone: ${data.phone}`, {
+            x: area.x + leftPadding,
+            y: linePositions.phone,
+            size: PHONE_FONT_SIZE,
+            color: PDFLib.rgb(0, 0, 0),
+            font: almaraiFont,
+            maxWidth: availableWidth
+        });
+    }
+
+    // 5. GSTIN
+    if (data.gst) {
+        page.drawText(`GSTIN: ${data.gst}`, {
+            x: area.x + leftPadding,
+            y: linePositions.gst,
+            size: GST_FONT_SIZE,
+            color: PDFLib.rgb(0, 0, 0),
+            font: almaraiFont,
+            maxWidth: availableWidth
+        });
+    }
+}
 
         // Function to render PDF preview with reduced bottom height
         async function renderPdfPreview(pdfBytes, canvasId) {
